@@ -1,12 +1,68 @@
 # plot_utils.py
+import os, sys
+import subprocess
+import glob
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
 import gmsh
-from gmsh_utils import prepare_quadrature_and_basis, get_jacobians
+from abc import ABC, abstractmethod
 
 
-# Plot the generated mesh. Highlight the physical groups created.
+def plot_fe_solution_high_order(
+    elemType, elemNodeTags, nodeCoords, U, M=80, show_nodes=False, ax=None, label=None
+):
+    """
+    Plot 1D high-order FE solution by sampling each element and evaluating gmsh basis.
+    Assumes U is aligned with gmsh's compact node ordering (0..nn-1).
+    """
+    _, _, _, nloc, _, _ = gmsh.model.mesh.getElementProperties(elemType)
+
+    u = np.linspace(-1.0, 1.0, int(M))
+    pts3 = np.zeros((len(u), 3), dtype=float)
+    pts3[:, 0] = u
+    uvw = pts3.reshape(-1).tolist()
+
+    _, bf, _ = gmsh.model.mesh.getBasisFunctions(elemType, uvw, "Lagrange")
+    N = np.asarray(bf, dtype=float).reshape(len(u), nloc)
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    ne = int(len(elemNodeTags) // nloc)
+    _, _, coords_flat = gmsh.model.mesh.getJacobians(elemType, uvw)
+    coords = np.asarray(coords_flat, dtype=float).reshape(ne, len(u), 3)
+
+    for e in range(ne):
+        tags_e = np.asarray(elemNodeTags[e * nloc : (e + 1) * nloc], dtype=int) - 1
+        Ue = U[tags_e]
+
+        x = coords[e, :, 0]
+        uh = N @ Ue
+
+        order = np.argsort(x)
+        ax.plot(x[order], uh[order], label=label if (e == 0) else None)
+
+    if show_nodes:
+        Xn = np.asarray(nodeCoords, dtype=float).reshape(-1, 3)[:, 0]
+        ax.plot(Xn, U, "o", markersize=4)
+
+    ax.set_xlabel("x")
+    ax.set_ylabel("u_h")
+    ax.grid(True)
+    return ax
+
+
+def setup_interactive_figure(xlim=None, ylim=None):
+    plt.ion()
+    fig, ax = plt.subplots()
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    return fig, ax
+
+
 def plot_mesh_2d(
     elemType,
     nodeTags,
@@ -72,50 +128,6 @@ def plot_mesh_2d(
     plt.show()
 
 
-def plot_fe_solution_high_order(
-    elemType, elemNodeTags, nodeCoords, U, M=80, show_nodes=False, ax=None, label=None
-):
-    """
-    Plot 1D high-order FE solution by sampling each element and evaluating gmsh basis.
-    Assumes U is aligned with gmsh's compact node ordering (0..nn-1).
-    """
-    _, _, _, nloc, _, _ = gmsh.model.mesh.getElementProperties(elemType)
-
-    u = np.linspace(-1.0, 1.0, int(M))
-    pts3 = np.zeros((len(u), 3), dtype=float)
-    pts3[:, 0] = u
-    uvw = pts3.reshape(-1).tolist()
-
-    _, bf, _ = gmsh.model.mesh.getBasisFunctions(elemType, uvw, "Lagrange")
-    N = np.asarray(bf, dtype=float).reshape(len(u), nloc)
-
-    if ax is None:
-        fig, ax = plt.subplots()
-
-    ne = int(len(elemNodeTags) // nloc)
-    _, _, coords_flat = gmsh.model.mesh.getJacobians(elemType, uvw)
-    coords = np.asarray(coords_flat, dtype=float).reshape(ne, len(u), 3)
-
-    for e in range(ne):
-        tags_e = np.asarray(elemNodeTags[e * nloc : (e + 1) * nloc], dtype=int) - 1
-        Ue = U[tags_e]
-
-        x = coords[e, :, 0]
-        uh = N @ Ue
-
-        order = np.argsort(x)
-        ax.plot(x[order], uh[order], label=label if (e == 0) else None)
-
-    if show_nodes:
-        Xn = np.asarray(nodeCoords, dtype=float).reshape(-1, 3)[:, 0]
-        ax.plot(Xn, U, "o", markersize=4)
-
-    ax.set_xlabel("x")
-    ax.set_ylabel("u_h")
-    ax.grid(True)
-    return ax
-
-
 def plot_fe_solution_2d(
     elemNodeTags,
     nodeCoords,
@@ -156,22 +168,102 @@ def plot_fe_solution_2d(
     triangles = tag_to_dof[conn_reshaped[:, :3].astype(int)]
     # 4. Plotting
     U = np.array(U).flatten()
-    contour = ax.tricontourf(x, y, triangles, U, levels=100, cmap="viridis")
+    contour = ax.tricontourf(
+        x, y, triangles, U, levels=100, cmap="seismic", vmin=-2.0, vmax=2.0
+    )
 
     if show_mesh:
         ax.triplot(x, y, triangles, color="white", linewidth=0.2, alpha=0.3)
 
-    ax.set_aspect("equal")
-    plt.colorbar(contour, ax=ax, label=label)
-
     return contour
 
 
-def setup_interactive_figure(xlim=(0.0, 1.0), ylim=None):
-    plt.ion()
-    fig, ax = plt.subplots()
-    ax.set_xlim(*xlim)
-    if ylim is not None:
-        ax.set_ylim(*ylim)
-    ax.grid(True)
-    return fig, ax
+class Display(ABC):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @abstractmethod
+    def add_frame(self, fig, ax, step):
+        pass
+
+    @abstractmethod
+    def get_figure(self):
+        pass
+
+    @abstractmethod
+    def end(self):
+        pass
+
+
+class VideoDisplay(Display):
+    def __init__(self, keep_frames=False) -> None:
+        super().__init__()
+        self.filename = "simulation.mp4"
+        self.keep_frames = keep_frames
+        self.last_step = 0
+        os.makedirs("frames", exist_ok=True)
+
+    def add_frame(self, fig, ax):
+        fig.savefig(
+            f"frames/frame_{self.last_step:04d}.png", dpi=100, bbox_inches="tight"
+        )
+
+        self.last_step += 1
+        return True
+
+    def get_figure(self):
+        return plt.subplots()
+
+    def end(self):
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-framerate",
+                "30",
+                "-i",
+                "frames/frame_%04d.png",
+                "-vf",
+                "pad=width=ceil(iw/2)*2:height=ceil(ih/2)*2",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                self.filename,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        print("Video written to file", self.filename)
+        if not self.keep_frames:
+            for f in glob.glob("frames/*.png"):
+                os.remove(f)
+
+        if sys.platform == "win32":
+            os.startfile("simulation.mp4")
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "simulation.mp4"])
+        else:
+            subprocess.Popen(
+                ["xdg-open", "simulation.mp4"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+
+class InteractiveDisplay(Display):
+    def __init__(self) -> None:
+        super().__init__()
+        self.fig, self.ax = setup_interactive_figure()
+
+    def get_figure(self):
+        return self.fig, self.ax
+
+    def add_frame(self, fig, ax):
+        if not plt.fignum_exists(fig.number):
+            return False
+        plt.pause(0.002)
+        return True
+
+    def end(self):
+        pass
