@@ -2,6 +2,7 @@
 import os, sys
 import subprocess
 import glob
+import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
@@ -125,6 +126,7 @@ def plot_mesh_2d(
         bbox_to_anchor=(0.5, 1.02),
     )
     plt.axis(False)
+    plt.savefig("mesh.pdf", bbox_inches="tight")
     plt.show()
 
 
@@ -215,40 +217,60 @@ class VideoDisplay(Display):
         return plt.subplots()
 
     def end(self):
-        subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-framerate",
-                "30",
-                "-i",
-                "frames/frame_%04d.png",
-                "-vf",
-                "pad=width=ceil(iw/2)*2:height=ceil(ih/2)*2",
-                "-c:v",
-                "libx264",
-                "-pix_fmt",
-                "yuv420p",
-                self.filename,
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        print("Video written to file", self.filename)
+        video_created = False
+        # Try to find ffmpeg in PATH
+        ffmpeg_path = shutil.which("ffmpeg")
+        
+        if ffmpeg_path is None:
+            print(f"Warning: ffmpeg not found in PATH. Video file '{self.filename}' was not created.")
+            print("To create videos, install ffmpeg: https://ffmpeg.org/download.html")
+            print("On Windows with Chocolatey: choco install ffmpeg")
+        else:
+            try:
+                subprocess.run(
+                    [
+                        ffmpeg_path,
+                        "-y",
+                        "-framerate",
+                        "30",
+                        "-i",
+                        "frames/frame_%04d.png",
+                        "-vf",
+                        "pad=width=ceil(iw/2)*2:height=ceil(ih/2)*2",
+                        "-c:v",
+                        "libx264",
+                        "-pix_fmt",
+                        "yuv420p",
+                        self.filename,
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=True,
+                )
+                video_created = True
+            except subprocess.CalledProcessError as e:
+                print(f"Warning: ffmpeg failed to create video. Error: {e}")
+            except Exception as e:
+                print(f"Warning: Error creating video: {e}")
+        
+        if video_created:
+            print("Video written to file", self.filename)
+        
         if not self.keep_frames:
             for f in glob.glob("frames/*.png"):
                 os.remove(f)
 
-        if sys.platform == "win32":
-            os.startfile("simulation.mp4")
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", "simulation.mp4"])
-        else:
-            subprocess.Popen(
-                ["xdg-open", "simulation.mp4"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+        if video_created:
+            if sys.platform == "win32":
+                os.startfile("simulation.mp4")
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "simulation.mp4"])
+            else:
+                subprocess.Popen(
+                    ["xdg-open", "simulation.mp4"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
 
 
 class InteractiveDisplay(Display):

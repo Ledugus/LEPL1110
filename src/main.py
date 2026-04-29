@@ -17,6 +17,7 @@ Initial condition:   u(x,0) = u0·exp(−‖x − x0‖²/(2σ²))
 
 import argparse
 import numpy as np
+from mesh import *
 
 from gmsh_utils import (
     gmsh_init,
@@ -45,12 +46,8 @@ from matplotlib.patches import Rectangle
 # The favourable band is centred at x = c*t, with half-width L_hab.
 # ---------------------------------------------------------------------------
 def habitat(x, t, c, L_hab):
-    """
-    m(x, t) = m(x + c·t) in the sense of a band moving northward.
-    Returns +1 (favourable) or -1 (unfavourable).
-    """
-    xi = x[0] + c * t  # habitat coordinate (translated)
-    return 1.0 if abs(xi) < L_hab else -1.0
+    yi = x[1] - c * t          # <-- axe y au lieu de x[0]
+    return 1.0 if abs(yi - 0) < L_hab else -1.0
 
 
 # ---------------------------------------------------------------------------
@@ -94,81 +91,41 @@ def make_explicit_source(U, dof_coords, tag_to_dof, t, c, L_hab, r, r_tilde, K):
     return _f
 
 
-def plot_favourable_band(ax, t, c, L_hab, L, H):
-    """
-    Overlay the moving favourable habitat band on the current axes.
-    """
-    x_left = -L_hab - c * t
-    x_right = L_hab - c * t
+def plot_favourable_band(ax, t, c, L_hab, x_min, x_max):
+    y_center = c * t
+    y0 = y_center - L_hab
+    y1 = y_center + L_hab
+    ax.axhspan(y0, y1, alpha=0.14, color='limegreen', zorder=6)
+    ax.axhline(y0, linestyle='--', linewidth=1.0, color='forestgreen', zorder=7)
+    ax.axhline(y1, linestyle='--', linewidth=1.0, color='forestgreen', zorder=7)
 
-    # Clip the band to the computational domain [0, L].
-    x0 = max(0.0, x_left)
-    x1 = min(L, x_right)
-    if x1 <= x0:
-        return
 
-    width = x1 - x0
-    band = Rectangle(
-        (x0, 0.0),
-        width,
-        H,
-        facecolor="limegreen",
-        alpha=0.14,
-        edgecolor="none",
-        zorder=6,
+def main(h, order, dt, nstep, theta):   # <-- L et H disparaissent, déduits du mesh
+    D = 0.5
+    r = 1.0
+    r_tilde = 0.5
+    K = 10
+    c = 5.0        # km/an, déplacement vers le nord (axe y ici)
+    
+    gmsh_init("belgium_kpp")
+    
+    # --- Mesh Belgique ---
+    (elemType, nodeTags, nodeCoords, elemTags, elemNodeTags,
+     bnds, bndsTags, bounds) = build_country_mesh(
+        country_name="Belgium", mesh_size=h, order=order
     )
-    ax.add_patch(band)
+    
+    x_min, x_max, y_min, y_max = bounds
+    L = x_max - x_min
+    H = y_max - y_min
+    L_hab = H / 6.0   # bande favorable : 1/3 de la hauteur du pays
+    
+    # Centre initial de la population : sud de la Belgique
+    x0 = [0.0, y_min + H * 0.4]
+    sigma = L / 8.0
+    u0_max = 10.0
 
-    ax.plot(
-        [x0, x0],
-        [0.0, H],
-        linestyle="--",
-        linewidth=1.0,
-        color="forestgreen",
-        alpha=0.9,
-        zorder=7,
-    )
-    ax.plot(
-        [x1, x1],
-        [0.0, H],
-        linestyle="--",
-        linewidth=1.0,
-        color="forestgreen",
-        alpha=0.9,
-        zorder=7,
-    )
-
-
-def main(L, H, h, order, dt, nstep, theta):
-    # ------------------------------------------------------------------
-    # Physical parameters (SI units: m, s, individuals/m²)
-    # ------------------------------------------------------------------
-    D = 1.0  # diffusion coefficient  [m²/s]
-    r = 1.0  # growth rate            [1/s]
-    r_tilde = 1.0  # decay rate outside habitat  [1/s]
-    K = 100.0  # carrying capacity      [ind/m²]
-    c = 0.3  # climate shift speed    [m/s]
-    L_hab = L / 3.0  # half-width of favourable band  [m]
-
-    # Initial Gaussian
-    u0_max = 10  # peak density
-    x0 = [L / 2, L / 2]  # centre of initial population
-    sigma = L / 10.0  # width of initial Gaussian
-
-    def size_field(x, y):
-        return h
-
-    gmsh_init("kpp_fisher_2d")
-
-    # ------------------------------------------------------------------
-    # Build mesh
-    # ------------------------------------------------------------------
-    (elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bndsTags) = (
-        build_2d_rectangle_mesh(L=L, H=H, size_field=size_field, order=order)
-    )
-
-    # plot_mesh_2d(elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bndsTags)
-
+    plot_mesh_2d(elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bndsTags)
     # ------------------------------------------------------------------
     # DOF bookkeeping
     # ------------------------------------------------------------------
@@ -294,15 +251,11 @@ def main(L, H, h, order, dt, nstep, theta):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="KPP-Fisher 2D species diffusion")
+    parser = argparse.ArgumentParser()
     parser.add_argument("-order", type=int, default=1)
-    parser.add_argument("-L", type=float, default=5.0)
-    parser.add_argument("-H", type=float, default=5.0)
-    parser.add_argument("-hc", type=float, default=0.2)
-    parser.add_argument("--dt", type=float, default=0.1, help="time step")
-    parser.add_argument("--nsteps", type=int, default=300, help="number of steps")
-    parser.add_argument(
-        "--theta", type=float, default=1.0, help="θ-scheme (1=implicit Euler)"
-    )
+    parser.add_argument("-hc", type=float, default=100)   # en km maintenant !
+    parser.add_argument("--dt", type=float, default=0.1)
+    parser.add_argument("--nsteps", type=int, default=100)
+    parser.add_argument("--theta", type=float, default=1.0)
     args = parser.parse_args()
-    main(args.L, args.H, args.hc, args.order, args.dt, args.nsteps, args.theta)
+    main(args.hc, args.order, args.dt, args.nsteps, args.theta)
