@@ -2,7 +2,6 @@ import gmsh
 import geopandas as gpd
 import pyproj
 import numpy as np
-import geodatasets
 from plot_utils import plot_mesh_2d 
 from gmsh_utils import *
     
@@ -14,7 +13,7 @@ def build_country_mesh(country_name="Belgium", mesh_size=100, order=1):
     country = country.simplify(0.5)
 
     # Si MultiPolygon (= pays avec îles), garder uniquement la partie continentale
-    if hasattr(country, 'geoms'):  # c'est un MultiPolygon
+    if hasattr(country, 'geoms'):  
         country = max(country.geoms, key=lambda p: p.area)
     
     coords_lonlat = np.array(country.exterior.coords)
@@ -22,10 +21,10 @@ def build_country_mesh(country_name="Belgium", mesh_size=100, order=1):
         coords_lonlat = coords_lonlat[:-1]
     
     # Projeter en mètres puis normaliser en km
-    proj = pyproj.Proj("EPSG:3857")
+    proj = pyproj.Proj("EPSG:3857") #https://epsg.io/3857
     coords = np.array([proj(lon, lat) for lon, lat in coords_lonlat]) / 1000.0
     
-    # Recentrer autour de (0,0) pour simplifier la physique
+    # Recentrer autour de (0,0)
     coords -= coords.mean(axis=0)
     
     point_tags = []
@@ -51,7 +50,7 @@ def build_country_mesh(country_name="Belgium", mesh_size=100, order=1):
     gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
     gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
     
-    gmsh.model.mesh.generate(2)
+    gmsh.model.mesh.generate(2) #2D MESH
     gmsh.model.mesh.setOrder(order)
     
     elemType = gmsh.model.mesh.getElementType("triangle", order)
@@ -65,7 +64,7 @@ def build_country_mesh(country_name="Belgium", mesh_size=100, order=1):
                    if gmsh.model.getPhysicalName(dim, g[1]) == name)
         bnds_tags.append(gmsh.model.mesh.getNodesForPhysicalGroup(dim, tag)[0])
     
-    # Retourner aussi les bounds du domaine pour la physique
+    # Retourner aussi les bounds du domaine
     x_coords = nodeCoords.reshape(-1, 3)[:, 0]
     y_coords = nodeCoords.reshape(-1, 3)[:, 1]
     bounds = (x_coords.min(), x_coords.max(), y_coords.min(), y_coords.max())

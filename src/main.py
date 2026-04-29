@@ -120,8 +120,8 @@ def main(h, order, dt, nstep, theta):   # <-- L et H disparaissent, déduits du 
     H = y_max - y_min
     L_hab = H / 6.0   # bande favorable : 1/3 de la hauteur du pays
     
-    # Centre initial de la population : sud de la Belgique
-    x0 = [0.0, y_min + H * 0.4]
+    # Centre initial de la population 
+    x0 = [0.0, -H]
     sigma = L / 8.0
     u0_max = 10.0
 
