@@ -9,7 +9,7 @@ from gmsh_utils import *
 def build_country_mesh(country_name="Belgium", mesh_size=100, order=1):
     
     world = gpd.read_file("https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip")   
-    country = world[world['NAME'] == 'Australia'].geometry.values[0]
+    country = world[world['NAME'] == country_name].geometry.values[0]
     country = country.simplify(0.5)
 
     # Si MultiPolygon (= pays avec îles), garder uniquement la partie continentale

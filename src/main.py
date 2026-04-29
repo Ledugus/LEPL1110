@@ -100,7 +100,7 @@ def plot_favourable_band(ax, t, c, L_hab, x_min, x_max):
     ax.axhline(y1, linestyle='--', linewidth=1.0, color='forestgreen', zorder=7)
 
 
-def main(h, order, dt, nstep, theta):   # <-- L et H disparaissent, déduits du mesh
+def main(h, order, dt, nstep, theta, country):   # <-- L et H disparaissent, déduits du mesh
     D = 0.5
     r = 1.0
     r_tilde = 0.5
@@ -112,7 +112,7 @@ def main(h, order, dt, nstep, theta):   # <-- L et H disparaissent, déduits du 
     # --- Mesh Belgique ---
     (elemType, nodeTags, nodeCoords, elemTags, elemNodeTags,
      bnds, bndsTags, bounds) = build_country_mesh(
-        country_name="Belgium", mesh_size=h, order=order
+        country, mesh_size=h, order=order
     )
     
     x_min, x_max, y_min, y_max = bounds
@@ -257,5 +257,6 @@ if __name__ == "__main__":
     parser.add_argument("--dt", type=float, default=0.1)
     parser.add_argument("--nsteps", type=int, default=100)
     parser.add_argument("--theta", type=float, default=1.0)
+    parser.add_argument("--country", type=str, default="Australia")
     args = parser.parse_args()
-    main(args.hc, args.order, args.dt, args.nsteps, args.theta)
+    main(args.hc, args.order, args.dt, args.nsteps, args.theta, args.country)
