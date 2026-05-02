@@ -1,16 +1,17 @@
 import gmsh
 import geopandas as gpd
+from numpy.char import center
 import pyproj
 import numpy as np
 from plot_utils import plot_mesh_2d 
 from gmsh_utils import *
     
 
-def build_country_mesh(country_name="Belgium", mesh_size=100, order=1):
+def build_country_mesh(country_name="Australia", mesh_size=100, order=1):
     
-    world = gpd.read_file("https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip")   
+    world = gpd.read_file("src/ne_10m_admin_0_countries.zip")   
     country = world[world['NAME'] == country_name].geometry.values[0]
-    country = country.simplify(0.5)
+    country = country.simplify(0.1)
 
     # Si MultiPolygon (= pays avec îles), garder uniquement la partie continentale
     if hasattr(country, 'geoms'):  
@@ -25,7 +26,10 @@ def build_country_mesh(country_name="Belgium", mesh_size=100, order=1):
     coords = np.array([proj(lon, lat) for lon, lat in coords_lonlat]) / 1000.0
     
     # Recentrer autour de (0,0)
-    coords -= coords.mean(axis=0)
+    # Recentrer autour de (0,0)
+    center = coords.mean(axis=0)
+    coords -= center
+    
     
     point_tags = []
     for x, y in coords:
@@ -69,12 +73,12 @@ def build_country_mesh(country_name="Belgium", mesh_size=100, order=1):
     y_coords = nodeCoords.reshape(-1, 3)[:, 1]
     bounds = (x_coords.min(), x_coords.max(), y_coords.min(), y_coords.max())
     
-    return elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bnds_tags, bounds
+    return elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bnds_tags, bounds, center
 
 
 def main():
     gmsh_init("mesh")
-    mesh = build_country_mesh(country_name="Belgium", mesh_size=100, order=1)
+    mesh = build_country_mesh(country_name="Australia", mesh_size=100, order=1)
     plot_mesh_2d(*mesh[:-1])
 
 

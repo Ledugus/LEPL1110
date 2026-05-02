@@ -9,6 +9,11 @@ import matplotlib.tri as tri
 import gmsh
 from abc import ABC, abstractmethod
 
+try:
+    import imageio_ffmpeg
+except ImportError:
+    imageio_ffmpeg = None
+
 
 def plot_fe_solution_high_order(
     elemType, elemNodeTags, nodeCoords, U, M=80, show_nodes=False, ax=None, label=None
@@ -73,7 +78,13 @@ def plot_mesh_2d(
     bnds,
     bnds_tags,
     tag_to_index=None,
+    node_values=None, 
+    colorbar_label="Field value",  
 ):
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import matplotlib.tri as tri
 
     coords = nodeCoords.reshape(-1, 3)
     x = coords[:, 0]
@@ -88,24 +99,37 @@ def plot_mesh_2d(
     num_elements = len(elemTags)
     nodes_per_elem = len(elemNodeTags) // num_elements
 
-    # take only the first 3 nodes (=geometric nodes that form the triangles)
+    # keep only triangle corner nodes
     all_nodes = elemNodeTags.reshape(num_elements, nodes_per_elem)
     corner_nodes = all_nodes[:, :3]
 
-    # Map to indices
     tri_indices = tag_to_index[corner_nodes.astype(int)]
-    # ---------------------------------------
 
     mesh_triang = tri.Triangulation(x, y, tri_indices)
+
     fig, ax = plt.subplots(figsize=(10, 5))
 
-    # Plot the skeleton
-    ax.triplot(mesh_triang, color="black", lw=0.5, alpha=0.4)
+   
+    if node_values is not None:
+        sc = ax.tripcolor(
+            mesh_triang,
+            node_values,
+            shading="gouraud",
+            cmap="viridis"
+        )
+        plt.colorbar(sc, ax=ax, label=colorbar_label)
+    else:
+        ax.triplot(mesh_triang, color="black", lw=0.5, alpha=0.4)
 
+    # ---------------------------------------
+    # Boundary points
+    # ---------------------------------------
     colors = ["red", "darkblue", "orange", "mediumpurple", "pink"]
+
     for i, (name, dim) in enumerate(bnds):
         tags = bnds_tags[i]
         indices = tag_to_index[tags.astype(int)]
+
         ax.scatter(
             x[indices],
             y[indices],
@@ -118,6 +142,7 @@ def plot_mesh_2d(
         )
 
     ax.set_aspect("equal")
+
     ax.legend(
         frameon=True,
         framealpha=1,
@@ -125,7 +150,8 @@ def plot_mesh_2d(
         loc="lower center",
         bbox_to_anchor=(0.5, 1.02),
     )
-    plt.axis(False)
+
+    plt.axis("off")
     plt.savefig("mesh.pdf", bbox_inches="tight")
     plt.show()
 
@@ -218,8 +244,13 @@ class VideoDisplay(Display):
 
     def end(self):
         video_created = False
-        # Try to find ffmpeg in PATH
+        # Try to find ffmpeg in PATH first, then fall back to the bundled binary.
         ffmpeg_path = shutil.which("ffmpeg")
+        if ffmpeg_path is None and imageio_ffmpeg is not None:
+            try:
+                ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+            except Exception:
+                ffmpeg_path = None
         
         if ffmpeg_path is None:
             print(f"Warning: ffmpeg not found in PATH. Video file '{self.filename}' was not created.")
@@ -261,16 +292,19 @@ class VideoDisplay(Display):
                 os.remove(f)
 
         if video_created:
-            if sys.platform == "win32":
-                os.startfile("simulation.mp4")
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", "simulation.mp4"])
-            else:
-                subprocess.Popen(
-                    ["xdg-open", "simulation.mp4"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
+            try:
+                if sys.platform == "win32":
+                    os.startfile("simulation.mp4")
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", "simulation.mp4"])
+                else:
+                    subprocess.Popen(
+                        ["xdg-open", "simulation.mp4"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+            except (FileNotFoundError, OSError):
+                pass  # Video viewer not available; file was created successfully
 
 
 class InteractiveDisplay(Display):
