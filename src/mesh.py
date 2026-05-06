@@ -1,11 +1,13 @@
 import gmsh
 import geopandas as gpd
-from numpy.char import center
-import pyproj
+#from numpy.char import center
+#WARNING
+#J'ai supprimé cette ligne parce que mon ordi ne veux pas importer from numpy.char
+#Par contre numpy.char.center() fonctionne
 import numpy as np
 from plot_utils import plot_mesh_2d 
 from gmsh_utils import *
-    
+import pyproj
 
 def build_country_mesh(country_name="Australia", mesh_size=100, order=1):
     

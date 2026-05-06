@@ -197,7 +197,7 @@ def plot_fe_solution_2d(
     # 4. Plotting
     U = np.array(U).flatten()
     contour = ax.tricontourf(
-        x, y, triangles, U, levels=100, cmap="seismic", vmin=-2.0, vmax=2.0
+        x, y, triangles, U, levels=100, cmap="viridis", vmin=-2.0, vmax=2.0
     )
 
     if show_mesh:

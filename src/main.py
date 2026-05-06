@@ -47,21 +47,28 @@ import matplotlib.pyplot as plt
 # ---------------------------------------------------------------------------
 def habitat(x, t, c, L_hab, band_y0=0.0):
     yi = x[1] - (band_y0 + c * t)
-    return 1.0 if abs(yi) < L_hab else -1.0
+    exp = 6
+    return (1-(yi/L_hab)**exp)/(1+(yi/L_hab)**exp)
 
 
 # ---------------------------------------------------------------------------
 # Nonlinear source term  f(u, x, t)
 # ---------------------------------------------------------------------------
-def f_source(u, x, t, c, L_hab, r_tilde, K, r_fn, band_y0=0.0):
+def f_source_binaire(u, x, t, c, L_hab, r_tilde, K, r_fn, band_y0=0.0):
     m = habitat(x, t, c, L_hab, band_y0=band_y0)
     if m > 0:
         r_x = r_fn(x)
         return r_x * u * (1.0 - u / K)
     else:
         return -r_tilde * u
+    
+def f_source_non_binaire(u, x, t, c, L_hab, r_tilde, K, r_fn, band_y0=0.0):
+    m = habitat(x, t, c, L_hab, band_y0=band_y0)
+    r_x = r_fn(x)
+    return ((m+1) * r_x * u * (1.0 - u / K) + (1-m) * (-r_tilde * u))/2
 
-
+f_source = f_source_non_binaire
+    
 # ---------------------------------------------------------------------------
 # Gaussian initial condition
 # ---------------------------------------------------------------------------
@@ -101,7 +108,7 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0):
     # --- Physical parameters ---
     D          = 0.5    # base diffusion coefficient  [km²/an]
     r          = 1.0    # base growth rate             [1/an]
-    r_tilde    = 0.5    # mortality rate outside band  [1/an]
+    r_tilde    = 0.1    # mortality rate outside band  [1/an]
     K          = 3  # carrying capacity
     c          = 5.0    # climate shift speed (northward, y-axis) [km/an]
 
