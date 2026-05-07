@@ -35,6 +35,7 @@ Pour changer de pays, il faudra au préalable télécharger les données d'altit
 | `--nsteps`  | `80`     | Nombre de pas de temps                                                           |
 | `--theta`   | `1.0`    | Schéma temporel (0 = Euler explicite, 1 = Euler implicite, 0.5 = Crank-Nicolson) |
 | `--band-y0` | `-200.0` | Position initiale (km) de la bande climatique favorable                          |
+| '--climate' | 'warming'|Type de changement de température, réchauffement global ou cycle saisonier        |
 
 ## Structure du projet
 
