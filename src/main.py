@@ -45,25 +45,29 @@ import matplotlib.pyplot as plt
 # ---------------------------------------------------------------------------
 # Habitat viability m(x, t): travelling wave along y-axis at speed c.
 # ---------------------------------------------------------------------------
-def habitat(x, t, c, L_hab, band_y0=0.0):
+def habitat_réchauffement(x, t, c, L_hab, band_y0=0.0):
     yi = x[1] - (band_y0 + c * t)
     exp = 6
-    return (1-(yi/L_hab)**exp)/(1+(yi/L_hab)**exp)
+    return (1-(yi/L_hab)**exp)/(1+(yi/L_hab)**exp), -yi
 
+def habitat_saison(x, t, c, L_hab, band_y0=0.0):
+    yi = x[1] - (band_y0*np.cos(t*2*np.pi))
+    exp = 6
+    return (1-(yi/L_hab)**exp)/(1+(yi/L_hab)**exp), -yi
 
 # ---------------------------------------------------------------------------
 # Nonlinear source term  f(u, x, t)
 # ---------------------------------------------------------------------------
-def f_source_binaire(u, x, t, c, L_hab, r_tilde, K, r_fn, band_y0=0.0):
-    m = habitat(x, t, c, L_hab, band_y0=band_y0)
+def f_source_binaire(u, x, t, c, L_hab, r_tilde, K, r_fn, band_y0=0.0, habitat=habitat_réchauffement):
+    m = habitat(x, t, c, L_hab, band_y0=band_y0)[0]
     if m > 0:
         r_x = r_fn(x)
         return r_x * u * (1.0 - u / K)
     else:
         return -r_tilde * u
     
-def f_source_non_binaire(u, x, t, c, L_hab, r_tilde, K, r_fn, band_y0=0.0):
-    m = habitat(x, t, c, L_hab, band_y0=band_y0)
+def f_source_non_binaire(u, x, t, c, L_hab, r_tilde, K, r_fn, band_y0=0.0, habitat=habitat_réchauffement):
+    m = habitat(x, t, c, L_hab, band_y0=band_y0)[0]
     r_x = r_fn(x)
     return ((m+1) * r_x * u * (1.0 - u / K) + (1-m) * (-r_tilde * u))/2
 
@@ -81,19 +85,19 @@ def u_init(x, x0, u0_max, sigma):
 # ---------------------------------------------------------------------------
 # Semi-implicit explicit source term (u frozen at U_n)
 # ---------------------------------------------------------------------------
-def make_explicit_source(U, dof_tree, dof_coords, t, c, L_hab, r_tilde, K, r_fn, band_y0=0.0):
+def make_explicit_source(U, dof_tree, dof_coords, t, c, L_hab, r_tilde, K, r_fn, band_y0=0.0, habitat=habitat_réchauffement):
     def _f(x):
         _, idx = dof_tree.query(x[:2])
         u_n = max(U[idx], 0.0)
-        return f_source(u_n, x, t, c, L_hab, r_tilde, K, r_fn, band_y0=band_y0)
+        return f_source(u_n, x, t, c, L_hab, r_tilde, K, r_fn, band_y0=band_y0, habitat=habitat)
     return _f
 
 
 # ---------------------------------------------------------------------------
 # Favourable band overlay on plot
 # ---------------------------------------------------------------------------
-def plot_favourable_band(ax, t, c, L_hab, band_y0=0.0):
-    y_center = band_y0 + c * t
+def plot_favourable_band(ax, t, c, L_hab, band_y0=0.0, habitat=habitat_réchauffement):
+    y_center = habitat((0,0), t, c, L_hab, band_y0=band_y0)[1]
     y0 = y_center - L_hab
     y1 = y_center + L_hab
     ax.axhspan(y0, y1, alpha=0.14, color='limegreen', zorder=6)
@@ -104,7 +108,8 @@ def plot_favourable_band(ax, t, c, L_hab, band_y0=0.0):
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def main(h, order, dt, nstep, theta, country, band_y0=0.0):
+def main(h, order, dt, nstep, theta, country, band_y0=0.0, climate="warming"):
+
     # --- Physical parameters ---
     D          = 0.5    # base diffusion coefficient  [km²/an]
     r          = 1.0    # base growth rate             [1/an]
@@ -116,6 +121,18 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0):
     alpha_slope = 3  # slope penalty: D(x) = D / (1 + alpha_slope * s/s_max) (s is slope in m/m, s_max is 95th percentile of slope across the domain)
     elev_opt    = 20 # altitude optimale de l'espèce [m]
     elev_width  = 30 # demi-largeur de la niche altitudinale [m]
+
+    if  climate == "seasonal":
+        dt/=50 
+        D*=50 #hypothèse d'une espèce d'animal avec une dynamique plus rapide qu'une plante
+        r*=50
+        r_tilde*=50
+        habitat = habitat_saison
+    elif climate == "warming":
+        habitat = habitat_réchauffement
+    else: 
+        raise ValueError(f"Unknown climate type: {climate}")
+
 
     # ------------------------------------------------------------------
     # Mesh
@@ -225,10 +242,10 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0):
 
         # Source terms frozen at U_n (semi-implicit)
         f_n = make_explicit_source(
-            U, dof_tree, dof_coords, t,      c, L_hab, r_tilde, K, r_fn, band_y0
+            U, dof_tree, dof_coords, t,      c, L_hab, r_tilde, K, r_fn, band_y0, habitat=habitat
         )
         f_np1 = make_explicit_source(
-            U, dof_tree, dof_coords, t + dt, c, L_hab, r_tilde, K, r_fn, band_y0
+            U, dof_tree, dof_coords, t + dt, c, L_hab, r_tilde, K, r_fn, band_y0, habitat=habitat
         )
 
         # Stiffness + RHS with spatially variable kappa
@@ -268,7 +285,7 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0):
         # Favourable band overlay (set axes limits first so axhspan is correct)
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(y_min, y_max)
-        plot_favourable_band(ax, t + dt, c, L_hab, band_y0=band_y0)
+        plot_favourable_band(ax, t + dt, c, L_hab, band_y0=band_y0, habitat=habitat)
 
         ax.set_title(
             f"t = {t+dt:.2f} an  |  c = {c:.1f} km/an  |  "
@@ -294,7 +311,9 @@ if __name__ == "__main__":
     parser.add_argument("--nsteps",   type=int,   default=80)
     parser.add_argument("--theta",    type=float, default=1.0)
     parser.add_argument("--country",  type=str,   default="Italy")
+    parser.add_argument("--climate", type=str,   default="warming", choices=["seasonal", "warming"],
+                        help="Type of climate shift: 'warming' for linear northward shift, 'seasonal' for oscillation along y-axis")
     parser.add_argument("--band-y0",  type=float, default=-200.0,
                         help="Vertical starting position of the favourable band")
     args = parser.parse_args()
-    main(args.hc, args.order, args.dt, args.nsteps, args.theta, args.country, args.band_y0)
+    main(args.hc, args.order, args.dt, args.nsteps, args.theta, args.country, args.band_y0, args.climate)
