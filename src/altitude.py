@@ -67,3 +67,40 @@ def compute_node_field(nodeCoords, elev_model, field="slope"):
         values.append(val)
 
     return np.array(values)
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Paramètres
+r0     = 1.0    # taux de croissance maximal [1/s]
+z_opt  = 1000   # altitude optimale [m]
+sigma_z = 400   # largeur caractéristique [m]
+
+# Altitude
+z = np.linspace(-500, 3500, 1000)
+
+# Fonction r(z)
+r = r0 * np.exp(-((z - z_opt) ** 2) / (2 * sigma_z ** 2))
+
+# Plot
+fig, ax = plt.subplots(figsize=(8, 4))
+
+ax.plot(z, r, color="#3266ad", linewidth=2.5, label=r"$r(z)$")
+ax.fill_between(z, r, alpha=0.08, color="#3266ad")
+ax.axvline(z_opt, color="#a32d2d", linewidth=1.5, linestyle="--", label=r"$z_\mathrm{opt}$")
+ax.axhline(r0, color="gray", linewidth=0.8, linestyle=":", label=r"$r_0$")
+
+ax.set_xlabel("Altitude $z$ (m)", fontsize=13)
+ax.set_ylabel(r"$r(z)$", fontsize=13)
+ax.set_title(r"Taux de croissance $r(z) = r_0 \exp\!\left(-\frac{(z - z_\mathrm{opt})^2}{2\,\sigma_z^2}\right)$", fontsize=12)
+ax.legend(fontsize=12)
+ax.set_xlim(z.min(), z.max())
+ax.set_ylim(0, r0 * 1.15)
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig("r_altitude.pdf", bbox_inches="tight")
+plt.show()
+
+

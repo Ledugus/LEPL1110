@@ -9,11 +9,11 @@ from plot_utils import plot_mesh_2d
 from gmsh_utils import *
 import pyproj
 
-def build_country_mesh(country_name="Australia", mesh_size=100, order=1):
+def build_country_mesh(country_name="Europe", mesh_size=100, order=1):
     
     world = gpd.read_file("src/ne_10m_admin_0_countries.zip")   
     country = world[world['NAME'] == country_name].geometry.values[0]
-    country = country.simplify(0.05)
+    country = country.simplify(0.01)
 
     # Si MultiPolygon (= pays avec îles), garder uniquement la partie continentale
     if hasattr(country, 'geoms'):  
@@ -46,7 +46,7 @@ def build_country_mesh(country_name="Australia", mesh_size=100, order=1):
     gmsh.model.occ.synchronize()
     
     gmsh.model.addPhysicalGroup(1, line_tags, tag=1)
-    gmsh.model.setPhysicalName(1, 1, "Border")
+    gmsh.model.setPhysicalName(1, 1, "Frontière")
     gmsh.model.addPhysicalGroup(2, [surface], tag=2)
     gmsh.model.setPhysicalName(2, 2, "Domain")
     
@@ -63,7 +63,7 @@ def build_country_mesh(country_name="Australia", mesh_size=100, order=1):
     nodeTags, nodeCoords, _ = gmsh.model.mesh.getNodes()
     elemTags, elemNodeTags = gmsh.model.mesh.getElementsByType(elemType)
     
-    bnds = [("Border", 1)]
+    bnds = [("Frontière", 1)]
     bnds_tags = []
     for name, dim in bnds:
         tag = next(g[1] for g in gmsh.model.getPhysicalGroups(dim)
@@ -80,8 +80,9 @@ def build_country_mesh(country_name="Australia", mesh_size=100, order=1):
 
 def main():
     gmsh_init("mesh")
-    mesh = build_country_mesh(country_name="Australia", mesh_size=100, order=1)
-    plot_mesh_2d(*mesh[:-1])
+    mesh = build_country_mesh(country_name="Europe", mesh_size=100, order=1)
+    # Keep only the arguments expected by plot_mesh_2d.
+    plot_mesh_2d(*mesh[:7])
 
 
 if __name__ == "__main__":

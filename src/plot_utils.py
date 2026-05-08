@@ -156,6 +156,13 @@ def plot_mesh_2d(
     plt.show()
 
 
+def plot_mesh_without_altitude(elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bnds_tags):
+    coords = nodeCoords.reshape(-1, 3)
+    coords[:, 2] = 0.0
+    plot_mesh_2d(elemType, nodeTags, coords.flatten(), elemTags, elemNodeTags, bnds, bnds_tags)
+    
+
+
 def plot_fe_solution_2d(
     elemNodeTags,
     nodeCoords,

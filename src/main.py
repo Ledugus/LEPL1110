@@ -35,6 +35,7 @@ from mass import assemble_mass
 from dirichlet import theta_step
 from plot_utils import (
     plot_mesh_2d,
+    plot_mesh_without_altitude,
     plot_fe_solution_2d,
     VideoDisplay,
     InteractiveDisplay,
@@ -163,8 +164,8 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0, climate="warming"):
 
     # Optional: visualise slope on mesh before simulation
     values = compute_node_field(nodeCoords, elev_model, field="elevation")
-    #plot_mesh_2d(elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bndsTags, node_values=values, colorbar_label="Elevation (m)")
-
+    plot_mesh_2d(elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bndsTags, node_values=values, colorbar_label="Elevation (m)")
+    #plot_mesh_without_altitude(elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bndsTags)
     # ------------------------------------------------------------------
     # DOF bookkeeping  
     # ------------------------------------------------------------------
