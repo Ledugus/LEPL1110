@@ -262,6 +262,7 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0, climate="warming"):
 
         # Enforce positivity
         U = np.maximum(U, 0.0)
+        total_population = M.sum(axis=1).A1 @ U
 
         # --- Plot ---
         ax.clear()
@@ -282,7 +283,7 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0, climate="warming"):
 
         ax.set_title(
             f"t = {t+dt:.2f} an  |  c = {c:.1f} km/an  |  "
-            f"θ = {theta}  |  max(u) = {U.max():.3f}"
+                f"θ = {theta}  |  max(u) = {U.max():.3f} | Pop={total_population:.2f}"
         )
         ax.set_xlabel("x  [km]")
         ax.set_ylabel("y  [km]")
