@@ -13,7 +13,7 @@ def build_country_mesh(country_name="Australia", mesh_size=100, order=1):
     
     world = gpd.read_file("src/ne_10m_admin_0_countries.zip")   
     country = world[world['NAME'] == country_name].geometry.values[0]
-    country = country.simplify(0.1)
+    country = country.simplify(0.05)
 
     # Si MultiPolygon (= pays avec îles), garder uniquement la partie continentale
     if hasattr(country, 'geoms'):  
