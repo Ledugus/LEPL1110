@@ -16,42 +16,67 @@ python3 -m pip install -r requirements.txt
 
 ```
 
-#### Utilisation
+### Exécution
 
-Pour lancer le script principal, utilisez la commande `make main`.
+```bash
+make main
+```
 
-Par défaut, le résultat de la simulation est stocké dans un fichier `simulation.mp4` à la racine du projet.
+`src/main.py` exécute `test_velocity(D=0.5, nsteps=100)`. Il compare l'évolution de la population totale pour plusieurs vitesses de déplacement du climat (`c = 5, 10, 15` km/an) et enregistre la figure dans `figures/velocity_D=0.5.pdf`.
 
-Pour changer de pays, il faudra au préalable télécharger les données d'altitude sur https://portal.opentopography.org/raster?opentopoID=OTSDEM.032021.4326.1 pour la bonne zone géographique.
+La première exécution génère et sauvegarde la condition initiale dans `data/initial_D=0.5.npy` (simulation stationnaire préalable). Les exécutions suivantes rechargent ce fichier directement.
 
-### Paramètres disponibles
+Un script de tests de convergence est également disponible :
 
-| Argument    | Défaut   | Description                                                                      |
-| ----------- | -------- | -------------------------------------------------------------------------------- |
-| `--country` | `Italy`  | Pays simulé (nom anglais, ex: `France`, `Spain`)                                 |
-| `-hc`       | `20`     | Taille des mailles du mesh (km)                                                  |
-| `-order`    | `1`      | Ordre des éléments finis (1 ou 2)                                                |
-| `--dt`      | `0.5`    | Pas de temps (années)                                                            |
-| `--nsteps`  | `80`     | Nombre de pas de temps                                                           |
-| `--theta`   | `1.0`    | Schéma temporel (0 = Euler explicite, 1 = Euler implicite, 0.5 = Crank-Nicolson) |
-| `--band-y0` | `-200.0` | Position initiale (km) de la bande climatique favorable                          |
-| '--climate' | 'warming'|Type de changement de température, réchauffement global ou cycle saisonier        |
+```bash
+make convergence
+```
+
+Il raffine progressivement la taille de maille `h` (de 80 à 15 km) à pas de temps fixe et trace les trajectoires de population totale `P(t)`.
+
+## Données nécessaires
+
+Le projet s'appuie sur :
+
+- `src/ne_10m_admin_0_countries.zip` — frontières des pays (Natural Earth) pour construire le maillage,
+- `src/world.tif` — modèle numérique de terrain au format GeoTIFF pour l'altitude (non inclus),
+- des dossiers de sortie `data/` et `figures/` (à créer avant la première exécution).
+  Pour obtenir le raster d'altitude, télécharger depuis OpenTopography :  
+  https://portal.opentopography.org/raster?opentopoID=OTSDEM.032021.4326.1
+
+Pour changer de pays, modifier le paramètre `country` dans `main.py` ou `convergence.py` (valeur par défaut : `"Italy"`).
+
+## Paramètres principaux
+
+| Paramètre    | Signification                               | Valeur par défaut |
+| ------------ | ------------------------------------------- | ----------------- |
+| `D`          | Coefficient de diffusion spatiale [km²/an]  | 0.5               |
+| `c`          | Vitesse de déplacement du climat [km/an]    | 5 / 10 / 15       |
+| `r`          | Taux de croissance maximal [1/an]           | 1.0               |
+| `r_tilde`    | Taux de mortalité hors habitat [1/an]       | 0.1               |
+| `K`          | Capacité de charge (portance)               | 3                 |
+| `theta`      | Paramètre du schéma θ (1 = Euler implicite) | 1                 |
+| `elev_opt`   | Altitude optimale de l'espèce [m]           | 20                |
+| `elev_width` | Largeur de la niche altitudinale [m]        | 30                |
 
 ## Structure du projet
 
 ```
 .
-├── src/
-│   ├── main.py           # Script principal — logique de simulation et boucle temporelle
-│   ├── mesh.py           # Construction du mesh 2D à partir des frontières du pays (GeoJSON)
-│   ├── altitude.py       # Lecture du MNT (.tif), calcul de la pente et de l'élévation aux DOFs
-│   ├── stiffness.py      # Assemblage de la matrice de rigidité et du vecteur RHS
-│   ├── mass.py           # Assemblage de la matrice de masse
-│   ├── dirichlet.py      # Schéma θ et application des conditions de Dirichlet
-│   ├── gmsh_utils.py     # Utilitaires gmsh (init, quadrature, jacobiens)
-│   ├── plot_utils.py     # Affichage des solutions EF 2D et génération de la vidéo
-│   └── italy.tif     # Modèle numérique de terrain (MNT) — fichier GeoTIFF A CHANGER SI AUTRE PAYS
-├── requirements.txt
 ├── Makefile
-└── README.md
+├── README.md
+├── requirements.txt
+├── src/
+│   ├── altitude.py       # Lecture du MNT (GeoTIFF), calcul altitude / pente par nœud
+│   ├── convergence.py    # Tests de convergence spatiale (raffinement de h)
+│   ├── dirichlet.py      # Schéma θ et réduction du système avec conditions de Dirichlet
+│   ├── errors.py         # Calcul des erreurs L2 et H1 par rapport à une solution exacte
+│   ├── gmsh_utils.py     # Initialisation gmsh, quadrature, fonctions de base
+│   ├── main.py           # Point d'entrée : test_velocity et sauvegarde CI
+│   ├── mass.py           # Assemblage de la matrice de masse globale
+│   ├── mesh.py           # Construction du maillage 2D à partir des frontières d'un pays
+│   ├── plot_utils.py     # Visualisation 2D, affichage interactif et génération de vidéos
+│   ├── simulation.py     # Boucle temporelle, dynamique KPP-Fisher, modèle d'altitude
+│   ├── stiffness.py      # Assemblage matrice de rigidité et second membre
+│   └── test.py           # Exploration / prototype FEniCS (non utilisé en production)
 ```

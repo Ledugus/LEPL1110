@@ -180,7 +180,10 @@ def simulate(
     print("Getting elevation model...", end="")
     proj = pyproj.Proj("EPSG:3857")
     print("Elev model...", end="")
-    elev_model = ElevationModel("src/italy.tif", proj, center_km=center)
+    elev_model = ElevationModel(
+        "src/world.tif", proj, center_km=center,
+        bounds_km=(x_min, x_max, y_min, y_max)   # déjà calculés juste avant
+    )
     print("done")
 
     # Optional: visualise slope on mesh before simulation
