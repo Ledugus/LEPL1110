@@ -22,7 +22,7 @@ python3 -m pip install -r requirements.txt
 make main
 ```
 
-`src/main.py` exécute `test_velocity(D=0.5, nsteps=100)`. Il compare l'évolution de la population totale pour plusieurs vitesses de déplacement du climat (`c = 5, 10, 15` km/an) et enregistre la figure dans `figures/velocity_D=0.5.pdf`.
+`src/main.py` exécute `test_velocity(D=0.5, nsteps=100)`. Il compare l'évolution de la population totale pour plusieurs vitesses de déplacement du climat (`c = 5, 10, 15` km/an) (à changer dans tested_velocities)
 
 La première exécution génère et sauvegarde la condition initiale dans `data/initial_D=0.5.npy` (simulation stationnaire préalable). Les exécutions suivantes rechargent ce fichier directement.
 
@@ -39,7 +39,7 @@ Il raffine progressivement la taille de maille `h` (de 80 à 15 km) à pas de te
 Le projet s'appuie sur :
 
 - `src/ne_10m_admin_0_countries.zip` — frontières des pays (Natural Earth) pour construire le maillage,
-- `src/world.tif` — modèle numérique de terrain au format GeoTIFF pour l'altitude (non inclus),
+- `src/world.tif` — modèle numérique de terrain au format GeoTIFF pour l'altitude,
 - des dossiers de sortie `data/` et `figures/` (à créer avant la première exécution).
   Pour obtenir le raster d'altitude, télécharger depuis OpenTopography :  
   https://portal.opentopography.org/raster?opentopoID=OTSDEM.032021.4326.1
@@ -67,16 +67,16 @@ Pour changer de pays, modifier le paramètre `country` dans `main.py` ou `conver
 ├── README.md
 ├── requirements.txt
 ├── src/
-│   ├── altitude.py       # Lecture du MNT (GeoTIFF), calcul altitude / pente par nœud
+│   ├── altitude.py
 │   ├── convergence.py    # Tests de convergence spatiale (raffinement de h)
-│   ├── dirichlet.py      # Schéma θ et réduction du système avec conditions de Dirichlet
-│   ├── errors.py         # Calcul des erreurs L2 et H1 par rapport à une solution exacte
+│   ├── dirichlet.py
+│   ├── errors.py
 │   ├── gmsh_utils.py     # Initialisation gmsh, quadrature, fonctions de base
 │   ├── main.py           # Point d'entrée : test_velocity et sauvegarde CI
-│   ├── mass.py           # Assemblage de la matrice de masse globale
+│   ├── mass.py
 │   ├── mesh.py           # Construction du maillage 2D à partir des frontières d'un pays
 │   ├── plot_utils.py     # Visualisation 2D, affichage interactif et génération de vidéos
 │   ├── simulation.py     # Boucle temporelle, dynamique KPP-Fisher, modèle d'altitude
-│   ├── stiffness.py      # Assemblage matrice de rigidité et second membre
-│   └── test.py           # Exploration / prototype FEniCS (non utilisé en production)
+│   ├── stiffness.py
+│   └── test.py
 ```
