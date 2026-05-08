@@ -166,7 +166,7 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0, climate="warming"):
     #plot_mesh_2d(elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bndsTags, node_values=values, colorbar_label="Elevation (m)")
 
     # ------------------------------------------------------------------
-    # DOF bookkeeping  (BUG FIX: use tag_to_index to map tags → rows)
+    # DOF bookkeeping  
     # ------------------------------------------------------------------
     max_tag     = int(np.max(nodeTags))
     tag_to_index = np.zeros(max_tag + 1, dtype=int)
@@ -192,11 +192,9 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0, climate="warming"):
     print("Computing elevation at DOFs...")
     elev_at_dof  = np.array([elev_model.get_elevation(x[0], x[1]) for x in dof_coords])
 
-    # ------------------------------------------------------------------
-    # Spatially variable diffusion  D(x) — reduced on steep slopes
-    # ------------------------------------------------------------------
+    
     def kappa(x):
-        D
+        return D
 
     # ------------------------------------------------------------------
     # Spatially variable growth rate  r(x) — Gaussian niche in altitude
