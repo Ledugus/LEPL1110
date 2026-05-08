@@ -12,7 +12,7 @@ class ElevationModel:
         Si fourni, seule cette fenêtre est lue depuis le .tif → rapide même
         avec un fichier mondial de 1.5 GB.
         """
-        self.proj      = proj
+        self.proj = proj
         self.center_km = np.array(center_km)
 
         with rasterio.open(tif_path) as src:
@@ -26,7 +26,7 @@ class ElevationModel:
                     (x_max_km + margin, y_max_km + margin),
                 ]
                 lons, lats = [], []
-                for (xk, yk) in corners_km:
+                for xk, yk in corners_km:
                     X = (xk + center_km[0]) * 1000.0
                     Y = (yk + center_km[1]) * 1000.0
                     lon, lat = proj(X, Y, inverse=True)
@@ -34,14 +34,18 @@ class ElevationModel:
                     lats.append(lat)
 
                 window = from_bounds(
-                    left=min(lons), bottom=min(lats),
-                    right=max(lons), top=max(lats),
+                    left=min(lons),
+                    bottom=min(lats),
+                    right=max(lons),
+                    top=max(lats),
                     transform=src.transform,
                 )
                 self.elevation = src.read(1, window=window).astype(float)
                 self.transform = src.window_transform(window)
-                print(f"  Fenêtre lue : {self.elevation.shape} pixels "
-                      f"(au lieu de {src.height}×{src.width})")
+                print(
+                    f"  Fenêtre lue : {self.elevation.shape} pixels "
+                    f"(au lieu de {src.height}×{src.width})"
+                )
             else:
                 # Fallback : tout lire (ancien comportement)
                 self.elevation = src.read(1).astype(float)
@@ -78,7 +82,7 @@ class ElevationModel:
     def get_slope(self, x_km, y_km):
         row, col = self.get_indices(x_km, y_km)
         return float(self.slope[row, col])
-    
+
 
 def compute_node_field(nodeCoords, elev_model, field="slope"):
     coords = nodeCoords.reshape(-1, 3)
@@ -100,25 +104,23 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Paramètres
-r0     = 1.0    # taux de croissance maximal [1/s]
-z_opt  = 1000   # altitude optimale [m]
-sigma_z = 400   # largeur caractéristique [m]
+r0 = 1.0  # taux de croissance maximal [1/s]
+z_opt = 1000  # altitude optimale [m]
+sigma_z = 400  # largeur caractéristique [m]
 
 # Altitude
 z = np.linspace(-500, 3500, 1000)
 
 # Fonction r(z)
-r = r0 * np.exp(-((z - z_opt) ** 2) / (2 * sigma_z ** 2))
+r = r0 * np.exp(-((z - z_opt) ** 2) / (2 * sigma_z**2))
 
 if __name__ == "__main__":
     plt.figure(figsize=(8, 5))
-    plt.plot(z, r, label='Taux de croissance r(z)')
-    plt.axvline(z_opt, color='r', linestyle='--', label='Altitude optimale z_opt')
-    plt.title('Taux de croissance en fonction de l\'altitude')
-    plt.xlabel('Altitude (m)')
-    plt.ylabel('Taux de croissance r(z) [1/s]')
+    plt.plot(z, r, label="Taux de croissance r(z)")
+    plt.axvline(z_opt, color="r", linestyle="--", label="Altitude optimale z_opt")
+    plt.title("Taux de croissance en fonction de l'altitude")
+    plt.xlabel("Altitude (m)")
+    plt.ylabel("Taux de croissance r(z) [1/s]")
     plt.legend()
     plt.grid()
     plt.show()
-
-

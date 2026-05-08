@@ -129,7 +129,7 @@ def simulate(
     # --- Physical parameters ---
     D = D  # base diffusion coefficient  [km²/an]
     r = 1.0  # base growth rate             [1/an]
-    r_tilde = 0.1  # mortality rate outside band  [1/an]
+    r_tilde = 1  # mortality rate outside band  [1/an]
     K_cap = 3  # carrying capacity
     c = c  # climate shift speed (northward, y-axis) [km/an]
 
@@ -292,9 +292,7 @@ def simulate(
     print("Entering time loop")
     for step in range(nstep):
         if step % 10 == 0:
-            print(
-                f"  step {step+1}/{nstep}  ({100*step/nstep:.1f}%)  max(u)={U.max():.4f}"
-            )
+            print(f"  step {step+1}/{nstep}  ({100*step/nstep:.1f}%)")
         t = step * dt
 
         # Source terms frozen at U_n (semi-implicit)
@@ -363,7 +361,7 @@ def simulate(
 
             ax.set_title(
                 f"t = {t+dt:.2f} an  |  c = {c:.1f} km/an  |  "
-                f"θ = {theta}  |  max(u) = {U.max():.3f} | Pop={total_populations[-1]:.2f}"
+                f"θ = {theta}  | Pop={total_populations[-1]:.2f}"
             )
             ax.set_xlabel("x  [km]")
             ax.set_ylabel("y  [km]")

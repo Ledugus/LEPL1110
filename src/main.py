@@ -80,7 +80,7 @@ def test_velocity(
         time_to_top = 1000 / c
         max_steps = np.round(min(nsteps, time_to_top / dt)).astype(int)
         print(f"Simulating velocity {c} for {max_steps} steps")
-        times = np.arange(max_steps + 1) * dt
+        times = np.arange(max_steps + 1) * dt * c
         _, total_pops = simulate(
             order,
             dt,
@@ -94,16 +94,16 @@ def test_velocity(
             initial_condition=initial_condition.copy(),
             show=False,
         )
-        plt.plot(times, total_pops, label=f"c={c}")
+        plt.plot(times, total_pops, label=f"c={c} (km / an)")
 
     gmsh_finalize()
     plt.title(f"Population totale au cours du temps, D={D}")
     plt.ylabel("Population totale [individus]")
-    plt.xlabel("Temps [années]")
+    plt.xlabel("Déplacement de la zone habitable")
     plt.legend()
     plt.savefig(f"figures/velocity_D={D}.pdf")
     plt.show()
 
 
 if __name__ == "__main__":
-    test_velocity(0.007, nsteps=200)
+    test_velocity(0.007, nsteps=500)
