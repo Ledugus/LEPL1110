@@ -11,9 +11,13 @@ import pyproj
 
 def build_country_mesh(country_name="Europe", mesh_size=100, order=1):
     
-    world = gpd.read_file("src/ne_10m_admin_0_countries.zip")   
-    country = world[world['NAME'] == country_name].geometry.values[0]
-    country = country.simplify(0.01)
+
+    world = gpd.read_file("src/ne_10m_admin_0_countries.zip") 
+    countries = country_name.split(",")
+    
+    country = world[world['NAME'].isin(countries)].geometry.unary_union
+    
+    country = country.simplify(0.05)
 
     # Si MultiPolygon (= pays avec îles), garder uniquement la partie continentale
     if hasattr(country, 'geoms'):  
@@ -78,10 +82,11 @@ def build_country_mesh(country_name="Europe", mesh_size=100, order=1):
     return elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bnds_tags, bounds, center
 
 
+
+
 def main():
     gmsh_init("mesh")
-    mesh = build_country_mesh(country_name="Europe", mesh_size=100, order=1)
-    # Keep only the arguments expected by plot_mesh_2d.
+    mesh = build_country_mesh(country_name="Russia", mesh_size=100, order=1)
     plot_mesh_2d(*mesh[:7])
 
 

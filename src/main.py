@@ -151,7 +151,7 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0, climate="warming"):
     L_hab = H / 6.0   # Habitat width (demi-largeur du band de climat favorable)
 
     # Gaussian IC centred at the lower-middle of the domain
-    x0    = [(x_min + x_max) / 2.0 + 500, y_min + H * 0.1]
+    x0    = [x_max - L * 0.2, y_min + H * 0.2]
     sigma = min(L, H) / 8.0
     u0_max = 5.0
 
