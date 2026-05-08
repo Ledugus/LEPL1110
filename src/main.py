@@ -118,7 +118,6 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0, climate="warming"):
     c          = 5.0    # climate shift speed (northward, y-axis) [km/an]
 
     # --- Terrain effect parameters ---
-    alpha_slope = 3  # slope penalty: D(x) = D / (1 + alpha_slope * s/s_max) (s is slope in m/m, s_max is 95th percentile of slope across the domain)
     elev_opt    = 20 # altitude optimale de l'espèce [m]
     elev_width  = 30 # demi-largeur de la niche altitudinale [m]
 
@@ -190,18 +189,14 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0, climate="warming"):
     # ------------------------------------------------------------------
     # Terrain fields at every DOF (computed once)
     # ------------------------------------------------------------------
-    print("Computing elevation and slope at DOFs...")
+    print("Computing elevation at DOFs...")
     elev_at_dof  = np.array([elev_model.get_elevation(x[0], x[1]) for x in dof_coords])
-    slope_at_dof = np.array([elev_model.get_slope   (x[0], x[1]) for x in dof_coords])
-    slope_max    = np.percentile(slope_at_dof, 95)   # robust normalisation
 
     # ------------------------------------------------------------------
     # Spatially variable diffusion  D(x) — reduced on steep slopes
     # ------------------------------------------------------------------
     def kappa(x):
-        _, idx = dof_tree.query(x[:2])
-        s = slope_at_dof[idx] / slope_max        # ∈ [0, 1] roughly
-        return D / (1.0 + alpha_slope * s)
+        D
 
     # ------------------------------------------------------------------
     # Spatially variable growth rate  r(x) — Gaussian niche in altitude
