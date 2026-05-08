@@ -1,25 +1,6 @@
-# main_kpp_fisher.py
-"""
-KPP-Fisher species diffusion in a shifting climate (LEPL1110 - Groupe 75)
-
-Solves:
-    ∂u/∂t − D·Δu = f(u, x, t)
-
-with:
-    f(u, x, t) = r(x)·u·(1 − u/K)   if m(x,t) > 0  (favourable habitat)
-               = −r̃·u                otherwise
-
-    r(x)   = r · exp(−(elev(x) − elev_opt)² / (2·elev_width²))
-    D(x)   = D / (1 + alpha_slope · slope(x)/slope_max)
-
-    m(x, t) = m(x + c·t)          travelling habitat wave (along y-axis)
-
-Boundary conditions: homogeneous Neumann ∂u/∂n = 0 (no-flux)
-Initial condition:   u(x,0) = u0·exp(−‖x − x0‖²/(2σ²))
-"""
-
 import numpy as np
 from scipy.spatial import KDTree
+from scipy.sparse.linalg import factorized
 from mesh import *
 from altitude import *
 
@@ -29,7 +10,7 @@ from gmsh_utils import (
     prepare_quadrature_and_basis,
     get_jacobians,
 )
-from stiffness import assemble_stiffness_and_rhs
+from stiffness import assemble_stiffness_and_rhs, assemble_rhs_only
 from mass import assemble_mass
 from dirichlet import theta_step
 from plot_utils import (
@@ -60,22 +41,22 @@ def habitat_saison(x, t, c, L_hab, band_y0=0.0):
 # Nonlinear source term  f(u, x, t)
 # ---------------------------------------------------------------------------
 def f_source_binaire(
-    u, x, t, c, L_hab, r_tilde, K, r_fn, band_y0=0.0, habitat=habitat_réchauffement
+    u, x, t, c, L_hab, r_tilde, K_cap, r_fn, band_y0=0.0, habitat=habitat_réchauffement
 ):
     m = habitat(x, t, c, L_hab, band_y0=band_y0)[0]
     if m > 0:
         r_x = r_fn(x)
-        return r_x * u * (1.0 - u / K)
+        return r_x * u * (1.0 - u / K_cap)
     else:
         return -r_tilde * u
 
 
 def f_source_non_binaire(
-    u, x, t, c, L_hab, r_tilde, K, r_fn, band_y0=0.0, habitat=habitat_réchauffement
+    u, x, t, c, L_hab, r_tilde, K_cap, r_fn, band_y0=0.0, habitat=habitat_réchauffement
 ):
     m = habitat(x, t, c, L_hab, band_y0=band_y0)[0]
     r_x = r_fn(x)
-    return ((m + 1) * r_x * u * (1.0 - u / K) + (1 - m) * (-r_tilde * u)) / 2
+    return ((m + 1) * r_x * u * (1.0 - u / K_cap) + (1 - m) * (-r_tilde * u)) / 2
 
 
 f_source = f_source_non_binaire
@@ -149,7 +130,7 @@ def simulate(
     D = D  # base diffusion coefficient  [km²/an]
     r = 1.0  # base growth rate             [1/an]
     r_tilde = 0.1  # mortality rate outside band  [1/an]
-    K = 3  # carrying capacity
+    K_cap = 3  # carrying capacity
     c = c  # climate shift speed (northward, y-axis) [km/an]
 
     # --- Terrain effect parameters ---
@@ -186,18 +167,21 @@ def simulate(
     x_min, x_max, y_min, y_max = bounds
     L = x_max - x_min
     H = y_max - y_min
-    L_hab = H / 6.0  # Habitat width (demi-largeur du band de climat favorable)
+    L_hab = H / 10  # Habitat width (demi-largeur du band de climat favorable)
 
     # Gaussian IC centred at the lower-middle of the domain
     x0 = [(x_min + x_max) / 2.0 + 500, y_min + H * 0.1]
     sigma = min(L, H) / 8.0
-    u0_max = K
+    u0_max = K_cap
 
     # ------------------------------------------------------------------
     # Elevation model
     # ------------------------------------------------------------------
+    print("Getting elevation model...", end="")
     proj = pyproj.Proj("EPSG:3857")
+    print("Elev model...", end="")
     elev_model = ElevationModel("src/italy.tif", proj, center_km=center)
+    print("done")
 
     # Optional: visualise slope on mesh before simulation
     # values = compute_node_field(nodeCoords, elev_model, field="elevation")
@@ -266,6 +250,31 @@ def simulate(
     M_lil = assemble_mass(elemTags, elemNodeTags, det, w, N, tag_to_dof)
     M = M_lil.tocsr()
     print("done")
+
+    print("Assemble stiffness...", end="")
+    K_lil, _ = assemble_stiffness_and_rhs(
+        elemTags,
+        elemNodeTags,
+        jac,
+        det,
+        coords,
+        w,
+        N,
+        gN,
+        kappa,
+        lambda x: 0.0,
+        tag_to_dof,
+    )
+    K = K_lil.tocsr()
+    print("done")
+    # ------------------------------------------------------------------
+    # Precompute theta-scheme matrices and factorize A once
+    # ------------------------------------------------------------------
+    A = M + theta * dt * K
+    B = M - (1.0 - theta) * dt * K
+    print("Factorizing A...", end="")
+    solve = factorized(A.tocsc())
+    print("done")
     # ------------------------------------------------------------------
     # Time loop
     # ------------------------------------------------------------------
@@ -294,7 +303,7 @@ def simulate(
             c,
             L_hab,
             r_tilde,
-            K,
+            K_cap,
             r_fn,
             band_y0,
             habitat=habitat,
@@ -307,35 +316,24 @@ def simulate(
             c,
             L_hab,
             r_tilde,
-            K,
+            K_cap,
             r_fn,
             band_y0,
             habitat=habitat,
         )
 
         # Stiffness + RHS with spatially variable kappa
-        K_lil_n, F_n = assemble_stiffness_and_rhs(
-            elemTags, elemNodeTags, jac, det, coords, w, N, gN, kappa, f_n, tag_to_dof
+        # Only assemble F, not K
+        F_n = assemble_rhs_only(
+            elemTags, elemNodeTags, det, coords, w, N, f_n, tag_to_dof
         )
-        K_lil_np1, F_np1 = assemble_stiffness_and_rhs(
-            elemTags, elemNodeTags, jac, det, coords, w, N, gN, kappa, f_np1, tag_to_dof
+        F_np1 = assemble_rhs_only(
+            elemTags, elemNodeTags, det, coords, w, N, f_np1, tag_to_dof
         )
 
-        K_n = K_lil_n.tocsr()
-        K_np1 = K_lil_np1.tocsr()
-
-        # θ-scheme — pure Neumann, no Dirichlet DOFs
-        U = theta_step(
-            M,
-            K_np1,
-            F_n,
-            F_np1,
-            U,
-            dt=dt,
-            theta=theta,
-            dirichlet_dofs=np.array([], dtype=int),
-            dir_vals_np1=np.array([], dtype=float),
-        )
+        # theta-scheme with precomputed B and prefactored A
+        rhs = B @ U + dt * (theta * F_np1 + (1.0 - theta) * F_n)
+        U = solve(rhs)
 
         # Enforce positivity
         U = np.maximum(U, 0.0)

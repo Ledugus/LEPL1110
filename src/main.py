@@ -2,6 +2,8 @@ import os
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+import pyproj
+from rasterio import *
 
 from gmsh_utils import gmsh_init, gmsh_finalize
 from simulation import simulate
@@ -11,7 +13,7 @@ from mesh import build_country_mesh
 def save_initial_condition(
     D,
     h=20,
-    nsteps=10,
+    nsteps=50,
     order=1,
     dt=0.5,
     country="Italy",
@@ -34,7 +36,7 @@ def save_initial_condition(
         climate,
         show=False,
     )
-    filename = f"data/initial_D={D:.1f}.npy"
+    filename = f"data/initial_D={D:.5f}.npy"
     np.save(filename, U_values[-1])
     print(f"Saved initial condition to '{filename}', total_pop={total_pops[-1]}")
     gmsh_finalize()
@@ -53,7 +55,7 @@ def test_velocity(
     band_y0=-600,
 ):
 
-    filename = f"data/initial_D={D:.1f}.npy"
+    filename = f"data/initial_D={D:.5f}.npy"
     if os.path.exists(filename):
         initial_condition_path = filename
         initial_condition = np.load(initial_condition_path)
@@ -68,17 +70,21 @@ def test_velocity(
             climate=climate,
             band_y0=band_y0,
         )
+    print(initial_condition)
 
     gmsh_init("kpp_fisher")
 
     mesh = build_country_mesh(country, mesh_size=h, order=order)
-    times = np.arange(nsteps + 1) * dt
     tested_velocities = [5, 10, 15]
     for c in tested_velocities:
+        time_to_top = 1000 / c
+        max_steps = np.round(min(nsteps, time_to_top / dt)).astype(int)
+        print(f"Simulating velocity {c} for {max_steps} steps")
+        times = np.arange(max_steps + 1) * dt
         _, total_pops = simulate(
             order,
             dt,
-            nsteps,
+            max_steps,
             theta,
             mesh,
             D,
@@ -91,13 +97,13 @@ def test_velocity(
         plt.plot(times, total_pops, label=f"c={c}")
 
     gmsh_finalize()
-    plt.title(f"Population totale au cours du temps, D={D:.1f}")
+    plt.title(f"Population totale au cours du temps, D={D}")
     plt.ylabel("Population totale [individus]")
     plt.xlabel("Temps [années]")
     plt.legend()
-    plt.savefig(f"figures/velocity_D={D:.1f}.pdf")
+    plt.savefig(f"figures/velocity_D={D}.pdf")
     plt.show()
 
 
 if __name__ == "__main__":
-    test_velocity(0.5, nsteps=100)
+    test_velocity(0.007, nsteps=200)

@@ -3,7 +3,9 @@ import numpy as np
 from scipy.sparse import lil_matrix
 
 
-def assemble_stiffness_and_rhs(elemTags, conn, jac, det, xphys, w, N, gN, kappa_fun, rhs_fun, tag_to_dof):
+def assemble_stiffness_and_rhs(
+    elemTags, conn, jac, det, xphys, w, N, gN, kappa_fun, rhs_fun, tag_to_dof
+):
     """
     Assemble global stiffness matrix and load vector for:
         -d/dx (kappa(x) du/dx) = f(x)
@@ -59,7 +61,37 @@ def assemble_stiffness_and_rhs(elemTags, conn, jac, det, xphys, w, N, gN, kappa_
 
     return K, F
 
-def assemble_rhs_neumann(F, elemTags, conn, jac, det, xphys, w, N, gN, g_neu_fun, tag_to_dof):
+
+def assemble_rhs_only(elemTags, conn, det, xphys, w, N, rhs_fun, tag_to_dof):
+    ne = len(elemTags)
+    ngp = len(w)
+    nloc = int(len(conn) // ne)
+    nn = int(np.max(tag_to_dof) + 1)
+
+    det = np.asarray(det, dtype=np.float64).reshape(ne, ngp)
+    xphys = np.asarray(xphys, dtype=np.float64).reshape(ne, ngp, 3)
+    conn = np.asarray(conn, dtype=np.int64).reshape(ne, nloc)
+    N = np.asarray(N, dtype=np.float64).reshape(ngp, nloc)
+
+    F = np.zeros(nn, dtype=np.float64)
+
+    for e in range(ne):
+        dof_indices = tag_to_dof[conn[e, :]]
+        for g in range(ngp):
+            xg = xphys[e, g]
+            wg = w[g]
+            detg = det[e, g]
+            f_g = float(rhs_fun(xg))
+            for a in range(nloc):
+                Ia = int(dof_indices[a])
+                F[Ia] += wg * f_g * N[g, a] * detg
+
+    return F
+
+
+def assemble_rhs_neumann(
+    F, elemTags, conn, jac, det, xphys, w, N, gN, g_neu_fun, tag_to_dof
+):
     ne = len(elemTags)
     ngp = len(w)
     nloc = int(len(conn) // ne)
