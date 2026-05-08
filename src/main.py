@@ -160,8 +160,10 @@ def main(h, order, dt, nstep, theta, country, band_y0=0.0, climate="warming"):
     # Elevation model
     # ------------------------------------------------------------------
     proj        = pyproj.Proj("EPSG:3857")
-    elev_model  = ElevationModel("src/italy.tif", proj, center_km=center)
-
+    elev_model = ElevationModel(
+        "src/world.tif", proj, center_km=center,
+        bounds_km=(x_min, x_max, y_min, y_max)   # déjà calculés juste avant
+    )
     # Optional: visualise slope on mesh before simulation
     values = compute_node_field(nodeCoords, elev_model, field="elevation")
     plot_mesh_2d(elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bndsTags, node_values=values, colorbar_label="Elevation (m)")
@@ -305,10 +307,12 @@ if __name__ == "__main__":
     parser.add_argument("--dt",       type=float, default=0.5)
     parser.add_argument("--nsteps",   type=int,   default=80)
     parser.add_argument("--theta",    type=float, default=1.0)
-    parser.add_argument("--country",  type=str,   default="Italy")
+    parser.add_argument("--country",  type=str,   default="Belgium,France,Spain,Switzerland,Italy", help="Comma-separated list of countries to include in the mesh (see src/countries.geojson)")
     parser.add_argument("--climate", type=str,   default="warming", choices=["seasonal", "warming"],
                         help="Type of climate shift: 'warming' for linear northward shift, 'seasonal' for oscillation along y-axis")
     parser.add_argument("--band-y0",  type=float, default=-200.0,
                         help="Vertical starting position of the favourable band")
+    parser.add_argument("--simplify-tolerance", type=float, default=0.2,
+                        help="Tolerance for simplifying country borders (in degrees, ~0.05 ≈ 5 km). Increase to speed up meshing at the cost of accuracy.")
     args = parser.parse_args()
     main(args.hc, args.order, args.dt, args.nsteps, args.theta, args.country, args.band_y0, args.climate)

@@ -1,5 +1,7 @@
 .venv
 */__pycache__/*
+./frame-*.png
+/frames
 *.mp4
 *.pdf
 *.tif

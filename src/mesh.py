@@ -9,7 +9,7 @@ from plot_utils import plot_mesh_2d
 from gmsh_utils import *
 import pyproj
 
-def build_country_mesh(country_name="Europe", mesh_size=100, order=1):
+def build_country_mesh(country_name="Europe", mesh_size=100, order=1, simplify_tolerance=0.05):
     
 
     world = gpd.read_file("src/ne_10m_admin_0_countries.zip") 
@@ -17,7 +17,7 @@ def build_country_mesh(country_name="Europe", mesh_size=100, order=1):
     
     country = world[world['NAME'].isin(countries)].geometry.unary_union
     
-    country = country.simplify(0.05)
+    country = country.simplify(simplify_tolerance) #Unité = degrés, 0.05 ≈ 5 km (ajuster selon besoin)
 
     # Si MultiPolygon (= pays avec îles), garder uniquement la partie continentale
     if hasattr(country, 'geoms'):  
@@ -86,7 +86,7 @@ def build_country_mesh(country_name="Europe", mesh_size=100, order=1):
 
 def main():
     gmsh_init("mesh")
-    mesh = build_country_mesh(country_name="Russia", mesh_size=100, order=1)
+    mesh = build_country_mesh(country_name="Russia", mesh_size=100, order=1, simplify_tolerance=0.05)
     plot_mesh_2d(*mesh[:7])
 
 
