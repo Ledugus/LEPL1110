@@ -42,10 +42,10 @@ class ElevationModel:
                 )
                 self.elevation = src.read(1, window=window).astype(float)
                 self.transform = src.window_transform(window)
-                print(
-                    f"  Fenêtre lue : {self.elevation.shape} pixels "
-                    f"(au lieu de {src.height}×{src.width})"
-                )
+                # print(
+                #     f"  Fenêtre lue : {self.elevation.shape} pixels "
+                #     f"(au lieu de {src.height}×{src.width})"
+                # )
             else:
                 # Fallback : tout lire (ancien comportement)
                 self.elevation = src.read(1).astype(float)

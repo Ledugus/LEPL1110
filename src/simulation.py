@@ -129,9 +129,11 @@ def simulate(
     band_y0=0.0,
     climate="warming",
     initial_condition=None,
+    elev_model=None,
     show=False,
 ):
 
+    start_total_time = time.perf_counter()
     # --- Physical parameters ---
     D = D  # base diffusion coefficient  [km²/an]
     r = 1.0  # base growth rate             [1/an]
@@ -179,25 +181,6 @@ def simulate(
     x0 = [(x_min + x_max) / 2.0 + 500, y_min + H * 0.1]
     sigma = min(L, H) / 8.0
     u0_max = K_cap
-
-    # ------------------------------------------------------------------
-    # Elevation model
-    # ------------------------------------------------------------------
-    print("Getting elevation model...", end="")
-    proj = pyproj.Proj("EPSG:3857")
-    print("Elev model...", end="")
-    elev_model = ElevationModel(
-        "src/italy.tif",
-        proj,
-        center_km=center,
-        bounds_km=(x_min, x_max, y_min, y_max),  # déjà calculés juste avant
-    )
-    print("done")
-
-    # Optional: visualise slope on mesh before simulation
-    # values = compute_node_field(nodeCoords, elev_model, field="elevation")
-    # plot_mesh_2d(elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bndsTags, node_values=values, colorbar_label="Elevation (m)")
-
     # ------------------------------------------------------------------
     # DOF bookkeeping
     # ------------------------------------------------------------------
@@ -219,6 +202,12 @@ def simulate(
     # KDTree for fast nearest-DOF lookup in kappa / r_fn
     dof_tree = KDTree(dof_coords[:, :2])
 
+    # ------------------------------------------------------------------
+    # Elevation model
+    # ------------------------------------------------------------------
+    # Optional: visualise slope on mesh before simulation
+    # values = compute_node_field(nodeCoords, elev_model, field="elevation")
+    # plot_mesh_2d(elemType, nodeTags, nodeCoords, elemTags, elemNodeTags, bnds, bndsTags, node_values=values, colorbar_label="Elevation (m)")
     # ------------------------------------------------------------------
     # Terrain fields at every DOF (computed once)
     # ------------------------------------------------------------------
@@ -311,7 +300,6 @@ def simulate(
         fig, ax = display.get_figure()
 
     print("Entering time loop")
-    start_total_time = time.perf_counter()
     time_assembly_rhs = 0
     time_solve = 0
     for step in range(nstep):
@@ -375,7 +363,7 @@ def simulate(
         display.end()
     print("Finished simulation")
     total_time = time.perf_counter() - start_total_time
-    print(total_time)
-    print(time_assembly_rhs)
-    print(time_solve)
+    print("Total simulation time (s):", total_time)
+    print("Total assembly time", time_assembly_rhs)
+    print("Total solve time", time_solve)
     return values, total_populations

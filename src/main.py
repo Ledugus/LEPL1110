@@ -1,3 +1,4 @@
+import time
 import os
 import argparse
 import numpy as np
@@ -8,6 +9,7 @@ from rasterio import *
 from gmsh_utils import gmsh_init, gmsh_finalize
 from simulation import simulate
 from mesh import build_country_mesh
+from altitude import ElevationModel
 
 
 def save_initial_condition(
@@ -54,6 +56,7 @@ def test_velocity(
     climate="warming",
     band_y0=-600,
 ):
+    #### INITIAL CONDITION ######
 
     filename = f"data/initial_D={D:.5f}.npy"
     if os.path.exists(filename):
@@ -72,8 +75,40 @@ def test_velocity(
         )
 
     gmsh_init("kpp_fisher")
-
+    ##### MESH ######
     mesh = build_country_mesh(country, mesh_size=h, order=order)
+
+    ##### ELEVATION MODEL #####
+
+    (
+        elemType,
+        nodeTags,
+        nodeCoords,
+        elemTags,
+        elemNodeTags,
+        bnds,
+        bndsTags,
+        bounds,
+        center,
+    ) = mesh
+
+    # --- changing climate parameters ---
+    x_min, x_max, y_min, y_max = bounds
+    time_start = time.perf_counter()
+    print("Getting elevation model...", end="")
+    proj = pyproj.Proj("EPSG:3857")
+    print("done")
+    print("Time for projection precomputation", time.perf_counter() - time_start)
+    print("Elev model...", end="")
+    elev_model = ElevationModel(
+        "src/italy.tif",
+        proj,
+        center_km=center,
+        bounds_km=(x_min, x_max, y_min, y_max),  # déjà calculés juste avant
+    )
+    print("done")
+    print("Time for Elev Model creation", time.perf_counter() - time_start)
+
     tested_velocities = [5, 10, 15]
     for c in tested_velocities:
         time_to_top = 1000 / c
@@ -91,6 +126,7 @@ def test_velocity(
             band_y0,
             climate,
             initial_condition=initial_condition.copy(),
+            elev_model=elev_model,
             show=False,
         )
         plt.plot(times, total_pops, label=f"c={c} (km / an)")
