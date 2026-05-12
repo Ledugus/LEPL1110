@@ -70,7 +70,6 @@ def test_velocity(
             climate=climate,
             band_y0=band_y0,
         )
-    print(initial_condition)
 
     gmsh_init("kpp_fisher")
 
@@ -106,4 +105,4 @@ def test_velocity(
 
 
 if __name__ == "__main__":
-    test_velocity(0.007, nsteps=500)
+    test_velocity(0.007, nsteps=10)

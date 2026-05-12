@@ -1,3 +1,4 @@
+import time
 import numpy as np
 from scipy.spatial import KDTree
 from scipy.sparse.linalg import factorized
@@ -10,7 +11,12 @@ from gmsh_utils import (
     prepare_quadrature_and_basis,
     get_jacobians,
 )
-from stiffness import assemble_stiffness_and_rhs, assemble_rhs_only
+from stiffness import (
+    assemble_stiffness_and_rhs,
+    precompute_gauss_r,
+    precompute_rhs_geometry,
+    assemble_F_fast,
+)
 from mass import assemble_mass
 from dirichlet import theta_step
 from plot_utils import (
@@ -181,8 +187,10 @@ def simulate(
     proj = pyproj.Proj("EPSG:3857")
     print("Elev model...", end="")
     elev_model = ElevationModel(
-        "src/world.tif", proj, center_km=center,
-        bounds_km=(x_min, x_max, y_min, y_max)   # déjà calculés juste avant
+        "src/italy.tif",
+        proj,
+        center_km=center,
+        bounds_km=(x_min, x_max, y_min, y_max),  # déjà calculés juste avant
     )
     print("done")
 
@@ -254,7 +262,7 @@ def simulate(
     M = M_lil.tocsr()
     print("done")
 
-    print("Assemble stiffness...", end="")
+    print("Assemble K...", end="")
     K_lil, _ = assemble_stiffness_and_rhs(
         elemTags,
         elemNodeTags,
@@ -270,6 +278,7 @@ def simulate(
     )
     K = K_lil.tocsr()
     print("done")
+
     # ------------------------------------------------------------------
     # Precompute theta-scheme matrices and factorize A once
     # ------------------------------------------------------------------
@@ -277,6 +286,18 @@ def simulate(
     B = M - (1.0 - theta) * dt * K
     print("Factorizing A...", end="")
     solve = factorized(A.tocsc())
+    print("done")
+
+    print("Precomputing RHS geometry...", end="")
+    rhs_cache = precompute_rhs_geometry(
+        elemTags, elemNodeTags, det, coords, w, N, tag_to_dof
+    )
+    print("done")
+
+    print("Precomputing r at Gauss points...", end="")
+    r_at_gp = precompute_gauss_r(
+        rhs_cache, dof_tree, elev_at_dof, r, elev_opt, elev_width
+    )
     print("done")
     # ------------------------------------------------------------------
     # Time loop
@@ -290,51 +311,30 @@ def simulate(
         fig, ax = display.get_figure()
 
     print("Entering time loop")
+    start_total_time = time.perf_counter()
+    time_assembly_rhs = 0
+    time_solve = 0
     for step in range(nstep):
         if step % 10 == 0:
             print(f"  step {step+1}/{nstep}  ({100*step/nstep:.1f}%)")
         t = step * dt
 
+        start = time.perf_counter()
         # Source terms frozen at U_n (semi-implicit)
-        f_n = make_explicit_source(
-            U,
-            dof_tree,
-            dof_coords,
-            t,
-            c,
-            L_hab,
-            r_tilde,
-            K_cap,
-            r_fn,
-            band_y0,
-            habitat=habitat,
+
+        F_n = assemble_F_fast(
+            U, rhs_cache, r_at_gp, t, c, L_hab, band_y0, r_tilde, K_cap
         )
-        f_np1 = make_explicit_source(
-            U,
-            dof_tree,
-            dof_coords,
-            t + dt,
-            c,
-            L_hab,
-            r_tilde,
-            K_cap,
-            r_fn,
-            band_y0,
-            habitat=habitat,
+        F_np1 = assemble_F_fast(
+            U, rhs_cache, r_at_gp, t + dt, c, L_hab, band_y0, r_tilde, K_cap
         )
 
-        # Stiffness + RHS with spatially variable kappa
-        # Only assemble F, not K
-        F_n = assemble_rhs_only(
-            elemTags, elemNodeTags, det, coords, w, N, f_n, tag_to_dof
-        )
-        F_np1 = assemble_rhs_only(
-            elemTags, elemNodeTags, det, coords, w, N, f_np1, tag_to_dof
-        )
-
+        time_assembly_rhs += time.perf_counter() - start
         # theta-scheme with precomputed B and prefactored A
+        start = time.perf_counter()
         rhs = B @ U + dt * (theta * F_np1 + (1.0 - theta) * F_n)
         U = solve(rhs)
+        time_solve += time.perf_counter() - start
 
         # Enforce positivity
         U = np.maximum(U, 0.0)
@@ -374,4 +374,8 @@ def simulate(
     if show:
         display.end()
     print("Finished simulation")
+    total_time = time.perf_counter() - start_total_time
+    print(total_time)
+    print(time_assembly_rhs)
+    print(time_solve)
     return values, total_populations
