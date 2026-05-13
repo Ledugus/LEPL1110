@@ -22,6 +22,7 @@ def save_initial_condition(
     theta=1,
     climate="warming",
     band_y0=-600,
+    elev_model=None,
 ):
     gmsh_init("kpp_fisher")
     mesh = build_country_mesh(country, mesh_size=h, order=order)
@@ -36,9 +37,10 @@ def save_initial_condition(
         c,
         band_y0,
         climate,
+        elev_model=elev_model,
         show=False,
     )
-    filename = f"data/initial_D={D:.5f}.npy"
+    filename = f"data/initial_D={D:.5f}_h={h}.npy"
     np.save(filename, U_values[-1])
     print(f"Saved initial condition to '{filename}', total_pop={total_pops[-1]}")
     gmsh_finalize()
@@ -47,7 +49,7 @@ def save_initial_condition(
 
 def test_velocity(
     D,
-    h=20,
+    h=5,
     nsteps=100,
     order=1,
     dt=0.5,
@@ -58,7 +60,7 @@ def test_velocity(
 ):
     #### INITIAL CONDITION ######
 
-    filename = f"data/initial_D={D:.5f}.npy"
+    filename = f"data/initial_D={D:.5f}_h={h}.npy"
     if os.path.exists(filename):
         initial_condition_path = filename
         initial_condition = np.load(initial_condition_path)
@@ -72,6 +74,7 @@ def test_velocity(
             theta=theta,
             climate=climate,
             band_y0=band_y0,
+            elev_model=elev_model,
         )
 
     gmsh_init("kpp_fisher")
@@ -93,23 +96,22 @@ def test_velocity(
     ) = mesh
 
     # --- changing climate parameters ---
-    x_min, x_max, y_min, y_max = bounds
-    time_start = time.perf_counter()
-    print("Getting elevation model...", end="")
     proj = pyproj.Proj("EPSG:3857")
-    print("done")
-    print("Time for projection precomputation", time.perf_counter() - time_start)
-    print("Elev model...", end="")
+    print("Getting ElevationModel...", end="")
+    time_start = time.perf_counter()
     elev_model = ElevationModel(
-        "src/italy.tif",
-        proj,
-        center_km=center,
-        bounds_km=(x_min, x_max, y_min, y_max),  # déjà calculés juste avant
+        "src/italy.tif", proj, center_km=center, bounds_km=bounds
     )
     print("done")
     print("Time for Elev Model creation", time.perf_counter() - time_start)
 
-    tested_velocities = [5, 10, 15]
+    tested_velocities = [
+        1,
+        5,
+        10,
+        15,
+        20,
+    ]
     for c in tested_velocities:
         time_to_top = 1000 / c
         max_steps = np.round(min(nsteps, time_to_top / dt)).astype(int)
@@ -141,4 +143,4 @@ def test_velocity(
 
 
 if __name__ == "__main__":
-    test_velocity(0.007, nsteps=10)
+    test_velocity(0.007, nsteps=10000)
